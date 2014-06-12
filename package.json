@@ -1,0 +1,15 @@
+{
+  "name": "project",
+  "version": "0.0.0",
+  "description": "a coffeescript project",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "mocha": "^1.20.1",
+    "chai": "^1.9.1"
+  }
+}
