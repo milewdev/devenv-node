@@ -1,0 +1,5 @@
+./node_modules/.bin/mocha           \
+  --compilers coffee:coffee-script  \
+  --require coffee-script           \
+  --reporter spec                   \
+  --colors
