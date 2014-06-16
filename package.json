@@ -2,7 +2,7 @@
   "name": "project",
   "version": "0.0.0",
   "description": "a coffeescript project",
-  "main": "./lib/stuff.js",
+  "main": "./lib/MyClass.js",
   "author": "",
   "license": "MIT",
   "devDependencies": {
