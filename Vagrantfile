@@ -3,151 +3,252 @@
 #
 
 
-VM_NAME                           = "CoffeeScriptDevEnv"
-VAGRANTFILE_API_VERSION           = "2"
-PROJECT_SCC_URL                   = "https://github.com/milewgit/CoffeeScriptDevEnv.git"
-PROJECT_VM_PATH                   = "/Users/vagrant/Documents/CoffeeScriptDevEnv"
-PROVIDER                          = "vmware_fusion"
-BOX                               = "OSX109"
+VAGRANTFILE_API_VERSION         = "2"
+PROJECT_SOURCE_URL              = "https://github.com/milewgit/dev-env-CoffeeScript-node.git"
+PROJECT_VM_PATH                 = "/Users/vagrant/Documents/dev-env-CoffeeScript-node"
+SYNCED_HOST_HOME_FOLDER         = { host: "~/", guest: "/.vagrant_host_home" }
+SYNCED_DOWNLOAD_CACHE_FOLDER    = { host: "cache", guest: "/.vagrant_download_cache" }
+PROVIDER                        = "vmware_fusion"
+BOX                             = "OSX109"
 
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
-  select_box                      config
-  configure_provider              config
-  setup_synced_folders            config  # easy way to copy gpg keys and git config from host to vm
-  install_osx_command_line_tools  config  # needed by git
-  install_gpg                     config  # needed in order to sign git commits
-  install_git                     config  # source is on github
-  install_node                    config  # used to run tests under node.js
-  install_editor                  config
-  install_travis_lint             config  # used to lint the travis config file .travis.yml
-  #install_project                 config
-  reboot                          config
-end
-
-
-def select_box(config)
-  config.vm.box = BOX
-end
-
-
-def configure_provider(config)
-  config.vm.provider(PROVIDER) do |vb|
-    vb.name = VM_NAME
-    vb.gui = true
+  with config do
+    setup_box BOX
+    setup_provider PROVIDER
+    setup_synced_folder SYNCED_HOST_HOME_FOLDER         # easy way to copy gpg keys and git config from host to vm
+    setup_synced_folder SYNCED_DOWNLOAD_CACHE_FOLDER    # guest needs access to downloaded files cached on the host
+    install_osx_command_line_tools                      # needed by git
+    install_gpg                                         # needed in order to sign git commits
+    install_git                                         # source is on github
+    install_node                                        # used to run coffeescript compiler, tests under node.js
+    install_editor
+    install_project_source_code PROJECT_SOURCE_URL, PROJECT_VM_PATH
+    npm_install PROJECT_VM_PATH
+    reboot_vm
   end
 end
 
 
-def setup_synced_folders(config)
-  config.vm.synced_folder "~/", "/.vagrant_host_home"
+require 'fileutils'
+
+
+def with(config, &block)
+  VagrantHelper.new(config).run(&block)
 end
 
 
-def install_osx_command_line_tools(config)
-  say config, "Installing OS X command line tools"
-  install_dmg config, 
-    'https://s3.amazonaws.com/OHSNAP/command_line_tools_os_x_mavericks_for_xcode__late_october_2013.dmg', 
-    'Command Line Developer Tools',
-    'Command Line Tools (OS X 10.9).pkg'
-end
+class VagrantHelper
 
+    def initialize(config)
+      @config = config
+    end
 
-def install_gpg(config)  
-  say config, "Installing gpg, gpg-agent, and copying gpg keys from vm host"
-  install_dmg config,
-    'https://releases.gpgtools.org/GPG%20Suite%20-%202013.10.22.dmg',
-    'GPG Suite', 
-    'Install.pkg'
-  run_script config, <<-'EOF'
-    sudo rm -rf /Users/vagrant/.gnupg
-    sudo rsync -r --exclude '.gnupg/S.gpg-agent' /.vagrant_host_home/.gnupg /Users/vagrant
-    sudo chown -R vagrant /Users/vagrant/.gnupg
-  EOF
-end
+    def run(&block)
+      instance_eval(&block)
+    end
 
+    def setup_box(box)
+      @config.vm.box = box
+    end
 
-def install_git(config)
-  say config, "Installing git and copying .gitconfig from vm host"
-  install_dmg config,
-    'https://git-osx-installer.googlecode.com/files/git-1.8.4.2-intel-universal-snow-leopard.dmg',
-    'Git 1.8.4.2 Snow Leopard Intel Universal',
-    'git-1.8.4.2-intel-universal-snow-leopard.pkg'
-  run_script config, "cp /.vagrant_host_home/.gitconfig /Users/vagrant/.gitconfig"
-end
+    def setup_provider(provider)
+      @config.vm.provider(provider) do |vb|
+        vb.gui = true
+      end
+    end
 
+    def setup_forwarded_port(forwarded_port)
+      @config.vm.network "forwarded_port", guest: forwarded_port[:guest], host: forwarded_port[:host]
+    end
 
-def install_node(config)
-  say config, "Installing nodejs"
-  install_pkg config, 'http://nodejs.org/dist/v0.10.26/node-v0.10.26.pkg'
-end
+    def setup_synced_folder(synced_folder)
+      create_if_missing(synced_folder[:host])
+      @config.vm.synced_folder synced_folder[:host], synced_folder[:guest]
+    end
 
+    def create_if_missing(folder)
+      folder = File.expand_path(folder)
+      FileUtils.mkdir_p(folder) unless File.exist?(folder)
+    end
 
-def install_editor(config)
-  say config, "Installing editor (TextMate)"
-  run_script config, "curl -fsSL https://api.textmate.org/downloads/release | sudo tar -x -C /Applications -f -"
-end
+    def install_osx_command_line_tools
+      say "Installing OS X command line tools"
+      install_dmg 'https://s3.amazonaws.com/OHSNAP/command_line_tools_os_x_mavericks_for_xcode__late_october_2013.dmg',
+        'Command Line Developer Tools',
+        'Command Line Tools (OS X 10.9).pkg'
+    end
 
+    def install_gpg
+      say "Installing gpg, gpg-agent, and copying gpg keys from vm host"
+      install_dmg 'https://releases.gpgtools.org/GPG%20Suite%20-%202013.10.22.dmg',
+        'GPG Suite',
+        'Install.pkg'
+      run_script <<-'EOF'
+        sudo rm -rf /Users/vagrant/.gnupg
+        sudo rsync -r --exclude '.gnupg/S.gpg-agent' /.vagrant_host_home/.gnupg /Users/vagrant
+        sudo chown -R vagrant /Users/vagrant/.gnupg
+      EOF
+    end
 
-def install_travis_lint(config)
-  say config, "Installing travis-lint"
-  install_ruby_gem config, "travis-lint"
-end
+    def install_git
+      say "Installing git and copying .gitconfig from vm host"
+      install_dmg 'https://git-osx-installer.googlecode.com/files/git-1.8.4.2-intel-universal-snow-leopard.dmg',
+        'Git 1.8.4.2 Snow Leopard Intel Universal',
+        'git-1.8.4.2-intel-universal-snow-leopard.pkg'
+      run_script "cp /.vagrant_host_home/.gitconfig /Users/vagrant/.gitconfig"
+    end
 
+    def install_node
+      say "Installing nodejs"
+      install_pkg 'http://nodejs.org/dist/v0.10.26/node-v0.10.26.pkg'
+    end
 
-def install_project(config)
-  say config, "Installing project sources and dependencies"
-  run_script config, <<-"EOF"
-    git clone #{PROJECT_SCC_URL} #{PROJECT_VM_PATH}
-    cd #{PROJECT_VM_PATH}
-    npm install
-  EOF
-end
+    def install_homebrew
+      say "Installing homebrew"
+      run_script 'ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"'
+    end
 
+    def install_bundler
+      say "Installing bundler"
+      run_script "sudo gem install bundler"
+    end
+    
+    def install_ruby
+       say "Installing Ruby"
+       run_script "brew install ruby"
+    end
+    
+    def install_python3
+      say "Installing python3"
+      install_dmg 'https://www.python.org/ftp/python/3.4.1/python-3.4.1-macosx10.6.dmg',
+        'Python 3.4.1',
+        'Python.mpkg'
+    end
+    
+    def install_virtualenv
+      say "Installing Python's virtualenv"
+      url = "https://pypi.python.org/packages/source/v/virtualenv/virtualenv-1.11.6.tar.gz"
+      cache_dir = derive_cache_dir(url)
+      download url, cache_dir, "virtualenv-1.11.6.tar.gz"
+      run_script <<-"EOF"
+        tar xvfz #{cache_dir[:guest_path]}/virtualenv-1.11.6.tar.gz
+        pushd virtualenv-1.11.6
+        sudo python setup.py install
+        popd
+        sudo rm -rf virtualenv-1.11.6
+      EOF
+    end
 
-def reboot(config)
-  say config, "Rebooting"
-  run_script config, "sudo reboot"
-end
+    def install_editor
+      say "Installing editor (TextMate)"
+      install_tar 'https://api.textmate.org/downloads/release'
+    end
 
+    def install_project_source_code(project_source_url, project_vm_path)
+      say "Installing project source code"
+      run_script "git clone #{project_source_url} #{project_vm_path}"
+    end
 
-def install_dmg(config, url, path, pkg)
-  path = '/Volumes/' + escape_shell_special_chars(path)
-  pkg = escape_shell_special_chars(pkg)
-  run_script config, <<-"EOF"
-    curl -o vm_install.dmg #{url}
-    hdiutil attach vm_install.dmg
-    sudo installer -pkg #{path}/#{pkg} -target /
-    hdiutil detach #{path}
-    rm -f vm_install.dmg
-  EOF
-end
+    def npm_install(project_vm_path)
+      say "Run npm install"
+      run_script "( cd #{project_vm_path} && exec npm install )"
+    end
+    
+    def bundle_install(project_vm_path)
+      say "Run bundle install"
+      run_script "( cd #{project_vm_path} && exec sudo bundle install )"
+    end
+    
+    def pip_install(project_vm_path)
+      say "Run pip install -r requirements.txt"
+      run_script "( cd #{project_vm_path} && exec bin/pip install -r requirements.txt )"
+    end
+    
+    def virtualenv(project_vm_path)
+      say "Run virtualenv"
+      run_script <<-"EOF"
+        pushd #{project_vm_path}
+        virtualenv --no-site-packages --python=`which python3` env
+        popd
+      EOF
+    end
 
+    def reboot_vm
+      say "Rebooting"
+      run_script "sudo reboot"
+    end
 
-def install_pkg(config, url)
-  run_script config, <<-"EOF"
-    curl -o vm_install.pkg #{url}
-    sudo installer -pkg vm_install.pkg -target /
-    rm -f vm_install.pkg
-  EOF
-end
+  private
 
+    def install_dmg(url, path, pkg)
+      cache_dir = derive_cache_dir(url)
+      download(url, cache_dir, "install.dmg")
+      run_dmg_installer(cache_dir, path, pkg)
+    end
 
-def install_ruby_gem(config, gem_name)
-  run_script config, "sudo gem install #{gem_name}"
-end
+    def install_tar(url)
+      cache_dir = derive_cache_dir(url)
+      download(url, cache_dir, "install.tar")
+      run_tar_installer(cache_dir)
+    end
 
+    def install_pkg(url)
+      cache_dir = derive_cache_dir(url)
+      download(url, cache_dir, "install.pkg")
+      run_pkg_installer(cache_dir)
+    end
 
-def escape_shell_special_chars(string)
-  string.gsub(/([ ()])/, '\\\\\1')        # "my product (v1)" => "my\ product\ \(v1\)"
-end
+    # The two cache paths point to the same physical directory, but one is used
+    # to access it from the host, the other from the guest vm.
+    def derive_cache_dir(url)
+      url_dir = url2dir(url)
+      host_path = File.join(SYNCED_DOWNLOAD_CACHE_FOLDER[:host], url_dir)
+      guest_path = File.join(SYNCED_DOWNLOAD_CACHE_FOLDER[:guest], url_dir)
+      {host_path: host_path, guest_path: guest_path}
+    end
 
+    # Test for file in the cache (via host_cache_dir) when this Vagrantfile runs,
+    # but download the file (if not in the cache) to the cache (via guest_cache_dir)
+    # when Vagrant runs the provisioning scripts on the vm.
+    def download(url, cache_dir, filename)
+      run_script "curl -L --create-dirs -o #{cache_dir[:guest_path]}/#{filename} #{url}" unless File.exist?("#{cache_dir[:host_path]}/#{filename}")
+    end
 
-def say(config, message)
-  run_script config, "echo '--------------- #{message} ---------------'"
-end
+    def run_dmg_installer(cache_dir, path, pkg)
+      path = '/Volumes/' + escape_shell_special_chars(path)
+      pkg = escape_shell_special_chars(pkg)
+      run_script <<-"EOF"
+        hdiutil attach #{cache_dir[:guest_path]}/install.dmg
+        sudo installer -pkg #{path}/#{pkg} -target /
+        hdiutil detach #{path}
+      EOF
+    end
 
+    def run_tar_installer(cache_dir)
+      run_script "sudo tar -x -C /Applications -f #{cache_dir[:guest_path]}/install.tar"
+    end
+    
+    def run_pkg_installer(cache_dir)
+      run_script "sudo installer -pkg #{cache_dir[:guest_path]}/install.pkg -target /"
+    end
 
-def run_script(config, script)
-  config.vm.provision :shell, privileged: false, inline: script
+    # 'http://company.com/file2014.dmg' => 'http3A2F2Fcompany2Ecom2Ffile20142Edmg'
+    def url2dir(url)
+      url.gsub( /[^a-zA-Z0-9]/ ) { |s| sprintf('%2X', s.ord) }
+    end
+
+    def say(message)
+      run_script "echo '--------------- #{message} ---------------'"
+    end
+
+    def run_script(script)
+      @config.vm.provision :shell, privileged: false, inline: script
+    end
+
+    # 'my product (v1)' => 'my\ product\ \(v1\)'
+    def escape_shell_special_chars(string)
+      string.gsub(/([ ()])/, '\\\\\1')
+    end
+
 end
