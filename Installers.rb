@@ -1,36 +1,34 @@
-class VagrantHelper
+require "fileutils"
 
-    def initialize(config)
-      @config = config
+
+class Installers
+
+    def initialize(vagrant_config)
+      @vagrant_config = vagrant_config
     end
 
     def run(&block)
       instance_eval(&block)
     end
 
-    def setup_box(box)
-      @config.vm.box = box
+    def select_box(box)
+      @vagrant_config.vm.box = box
     end
 
     def setup_provider(provider, vm_name)
-      @config.vm.provider(provider) do |vb|
+      @vagrant_config.vm.provider(provider) do |vb|
         vb.name = vm_name
         vb.gui = true
       end
     end
 
     def setup_forwarded_port(forwarded_port)
-      @config.vm.network "forwarded_port", guest: forwarded_port[:guest], host: forwarded_port[:host]
+      @vagrant_config.vm.network "forwarded_port", guest: forwarded_port[:guest], host: forwarded_port[:host]
     end
 
     def setup_synced_folder(synced_folder)
       create_if_missing(synced_folder[:host])
-      @config.vm.synced_folder synced_folder[:host], synced_folder[:guest]
-    end
-
-    def create_if_missing(folder)
-      folder = File.expand_path(folder)
-      FileUtils.mkdir_p(folder) unless File.exist?(folder)
+      @vagrant_config.vm.synced_folder synced_folder[:host], synced_folder[:guest]
     end
 
     def install_osx_command_line_tools
@@ -142,6 +140,11 @@ class VagrantHelper
 
   private
 
+    def create_if_missing(folder)
+      folder = File.expand_path(folder)
+      FileUtils.mkdir_p(folder) unless File.exist?(folder)
+    end
+
     def install_dmg(url, path, pkg)
       cache_dir = derive_cache_dir(url)
       download(url, cache_dir, "install.dmg")
@@ -204,7 +207,7 @@ class VagrantHelper
     end
 
     def run_script(script)
-      @config.vm.provision :shell, privileged: false, inline: script
+      @vagrant_config.vm.provision :shell, privileged: false, inline: script
     end
 
     # 'my product (v1)' => 'my\ product\ \(v1\)'
