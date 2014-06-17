@@ -34,10 +34,10 @@ end
 def with(vagrant_config, &block)
   
   # Retrieve Installers.rb from git and load it
-  # require "open-uri"
-  # open("Installers.rb", "w") do |file|
-  #   file << open("https://raw.githubusercontent.com/milewgit/dev-env-CoffeeScript-node/master/Installers.rb").read
-  # end
+  require "open-uri"
+  open("Installers.rb", "w") do |file|
+    file << open("https://raw.githubusercontent.com/milewgit/vm-installers/master/Installers.rb").read
+  end
   require_relative "Installers"
   
   Installers.new(vagrant_config).run(&block)
