@@ -33,7 +33,7 @@ end
 
 def with(vagrant_config, &block)
   require "open-uri"
-  # open("Provisioner.rb", "w") { |file| file.write open(PROVISIONER_URL).read }
+  open("Provisioner.rb", "w") { |file| file.write open(PROVISIONER_URL).read }
   require_relative "Provisioner"
   Provisioner.new(vagrant_config).provision(&block)
 end
