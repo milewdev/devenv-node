@@ -1,33 +1,42 @@
 #
-# Vagrantfile for a generic CoffeeScript development environment vm.
+# Vagrantfile to create a generic Node.js + CoffeeScript development environment.
 #
 
 
 VAGRANTFILE_API_VERSION   = "2"
 BOX                       = "OSX109"
 PROVIDER_NAME             = "vmware_fusion"
-PROJECT_NAME              = "dev-env-CoffeeScript-node"
+PROJECT_NAME              = "devenv-node"
 VM_NAME                   = PROJECT_NAME
-HOST_HOME_DIR             = { host: "~/", guest: "/.vagrant_host_home" }
-PROJECT_GITHUB_URL        = "https://github.com/milewgit/#{PROJECT_NAME}.git"
+PROJECT_GITHUB_URL        = "https://github.com/milewdev/#{PROJECT_NAME}.git"
 PROJECT_VM_DIR            = "/Users/vagrant/Documents/#{PROJECT_NAME}"
-PROVISIONER_URL           = "https://raw.githubusercontent.com/milewgit/vm-provisioner/master/Provisioner.rb"
+PROVISIONER_URL           = "https://raw.githubusercontent.com/milewdev/vm-provisioner/v2/Provisioner.rb"
 
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |vagrant_config|
-  with vagrant_config do
-    Setup    :Box, BOX
-    Setup    :Provider, PROVIDER_NAME, VM_NAME
-    Setup    :SyncedFolder, HOST_HOME_DIR                 # easy way to copy gpg keys and git config from host to vm
-    Install  :OsxCommandLineTools                         # needed by git
-    Install  :Gpg                                         # needed to sign git commits
-    Install  :Git                                         # source is on github
-    Install  :Node                                        # used to run coffeescript compiler, tests under node.js
-    Install  :TextMate
-    Git      :Clone, PROJECT_GITHUB_URL, PROJECT_VM_DIR
-    Npm      :Install, PROJECT_VM_DIR
-    Reboot   :Vm
+
+  vagrant_config.vm.box = BOX
+
+  vagrant_config.vm.provider(PROVIDER_NAME) do |vb|
+    vb.name = VM_NAME
+    vb.gui = true
   end
+
+  with vagrant_config do
+    install_atom
+    install_iterm2
+    install_gpg                                         # needed to sign git commits
+    install_git                                         # source is on github
+    install_github_for_mac
+    install_node
+    git_clone PROJECT_GITHUB_URL, PROJECT_VM_DIR
+    cd PROJECT_VM_DIR do
+      npm_install
+    end
+    add_to_path "#{PROJECT_VM_DIR}/node_modules/.bin"
+    reboot_vm
+  end
+
 end
 
 
@@ -36,4 +45,5 @@ def with(vagrant_config, &block)
   File.write "Provisioner.rb", open(PROVISIONER_URL).read
   require_relative "Provisioner"
   Provisioner.provision(vagrant_config, &block)
+  File.delete "Provisioner.rb"
 end
